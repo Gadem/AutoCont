@@ -1,0 +1,13 @@
+# Ignorar archivos temporales y entornos virtuales de Python
+
+# Entornos virtuales (el que uses)
+venv/
+.venv/
+env/
+facturas-xml/
+
+# Archivos de caché/compilados de Python
+__pycache__/
+*.pyc
+*.pyd
+.Python
