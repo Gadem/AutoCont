@@ -134,48 +134,40 @@ def guardar_en_csv(datos_facturas, nombre_archivo='datos_facturas.csv'):
                     'Descripcion': concepto.get('Descripcion'),
                     'Cantidad': concepto.get('Cantidad'),
                     'ValorUnitario': concepto.get('ValorUnitario'),
-                    'Importe_Concepto': concepto.get('Importe') 
+                    'Importe_Concepto': concepto.get('Importe')
                 })
                 filas_csv.append(fila)
         else:
-             filas_csv.append(datos_principales)
-
+            # Si la factura no tiene conceptos, agregamos solo los datos generales
+            filas_csv.append(datos_principales)
+    
     try:
-        with open(nombre_archivo, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader() 
+        with open(nombre_archivo, mode='w', newline='', encoding='utf-8') as archivo_csv:
+            writer = csv.DictWriter(archivo_csv, fieldnames=fieldnames)
+            writer.writeheader()
             writer.writerows(filas_csv)
-
-        print(f"✅ ¡Guardado completado!")
+        print(f"-> Archivo guardado exitosamente: {nombre_archivo}")
     except Exception as e:
-        print(f"❌ ERROR al guardar el archivo CSV: {e}")
-
+        print(f"Error al guardar el CSV: {e}")
 
 def main(archivos_xml):
-    
-    print(f"DEBUG: Argumentos recibidos: {archivos_xml}")
-    
     if not archivos_xml:
-        print("Uso: python procesador_cfdi.py <archivo1.xml> [archivo2.xml...]")
+        print("Uso: python procesador.py <archivo1.xml> [archivo2.xml...]")
         return
 
-    resultados_colectados = [] 
-    
+    datos_totales = []
     for archivo in archivos_xml:
-        datos_extraidos = extraer_datos_factura(archivo)
-        
-        if datos_extraidos:
-            resultados_colectados.append(datos_extraidos)
+        if os.path.exists(archivo):
+            datos = extraer_datos_factura(archivo)
+            if datos:
+                datos_totales.append(datos)
+        else:
+            print(f"Archivo no encontrado: {archivo}")
 
-    print("\n--- RESUMEN ---")
-    print(f"Facturas procesadas correctamente: {len(resultados_colectados)}")
-
-    if resultados_colectados:
-        print("\n--- DATOS EXTRAÍDOS (JSON) ---")
-        print(json.dumps(resultados_colectados, indent=2))
-
-    guardar_en_csv(resultados_colectados)
-
+    if datos_totales:
+        guardar_en_csv(datos_totales)
+    else:
+        print("No se extrajeron datos de ningun archivo.")
 
 if __name__ == '__main__':
     main(sys.argv[1:])
