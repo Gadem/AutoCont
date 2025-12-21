@@ -1,0 +1,2 @@
+UUID,Fecha,SubTotal,Total,Moneda,TotalImpuestosTrasladados,IVA_Tasa16,TipoDeComprobante,Emisor_RFC,Emisor_Nombre,Receptor_RFC,UsoCFDI,ClaveProdServ,Descripcion,Cantidad,ValorUnitario,Importe_Concepto
+BF7CFD0A-3AB9-4689-AE1C-EFE0FC503A98,2025-10-09T11:35:10,2500,2900.00,MXN,400.00,400.0,I,MOJJ880119UD0,JESUS ADRIAN MORA JIMENEZ,TIQR690507IGA,G03,81112001,Iguala Mensual IBPV Octubre,1,2500.000000,2500.000000
