@@ -160,7 +160,7 @@ def main(archivos_xml):
         if os.path.exists(archivo):
             datos = extraer_datos_factura(archivo)
             if datos:
-                datos_totales.append(datos)
+                datos_totales.append(datos) 
         else:
             print(f"Archivo no encontrado: {archivo}")
 
