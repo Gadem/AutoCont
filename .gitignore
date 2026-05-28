@@ -15,6 +15,7 @@ reporte.csv
 reporte.xlsx
 *.xlsx
 *.zip
+datos_facturas.csv
 
 # Archivos de caché/compilados de Python
 __pycache__/
