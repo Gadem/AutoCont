@@ -1,0 +1,23 @@
+# Ignorar archivos temporales y entornos virtuales de Python
+
+# Entornos virtuales (el que uses)
+venv/
+.venv/
+env/
+facturas-xml/
+
+# IDEs / OS
+.idea/
+.DS_Store
+
+# Artefactos generados
+reporte.csv
+reporte.xlsx
+*.xlsx
+*.zip
+
+# Archivos de caché/compilados de Python
+__pycache__/
+*.pyc
+*.pyd
+.Python
