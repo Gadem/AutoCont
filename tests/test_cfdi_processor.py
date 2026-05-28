@@ -2,7 +2,6 @@ from pathlib import Path
 
 from cfdi_processor import iter_rows, parse_cfdi_file
 
-
 FIXTURES = Path(__file__).parent / "fixtures"
 
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Iterable
-import xml.etree.ElementTree as ET
-
+from typing import Any
 
 TFD_NS = "http://www.sat.gob.mx/TimbreFiscalDigital"
 
