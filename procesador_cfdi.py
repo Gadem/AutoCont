@@ -1,158 +1,104 @@
-import xml.etree.ElementTree as ET
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
 import sys
+import glob
 import os
-import json 
-import csv 
 
-# --- CONFIGURACIÓN DE NAMESPACES ---
-NAMESPACES = {
-    'cfdi': 'http://www.sat.gob.mx/cfd/4',
-    'tfd': 'http://www.sat.gob.mx/TimbreFiscalDigital'
-}
+import pandas as pd
 
-def extraer_datos_factura(ruta_archivo):
-    """
-    Función para analizar el XML y extraer los datos clave (incluyendo Impuestos).
-    """
-    print(f"-> Procesando: {os.path.basename(ruta_archivo)}")
-    
-    try:
-        tree = ET.parse(ruta_archivo)
-        root = tree.getroot()
-        comprobante = root
-        
-        # Preparar el diccionario de datos con campos para SubTotal e impuestos
-        datos = {
-            'UUID': 'N/A', 
-            'Fecha': comprobante.get('Fecha'),
-            'SubTotal': comprobante.get('SubTotal'), # <-- Agregado SubTotal
-            'Total': comprobante.get('Total'),
-            'Moneda': comprobante.get('Moneda'),
-            'TipoDeComprobante': comprobante.get('TipoDeComprobante'),
-            
-            # Campos de Impuestos
-            'TotalImpuestosTrasladados': '0.00', 
-            'IVA_Tasa16': '0.00', 
-            
-            'Conceptos': []
-        }
-        
-        # --- 1. Extracción de Emisor y Receptor ---
-        emisor = comprobante.find('cfdi:Emisor', NAMESPACES)
-        if emisor is not None:
-            datos['Emisor_RFC'] = emisor.get('Rfc')
-            datos['Emisor_Nombre'] = emisor.get('Nombre')
-
-        receptor = comprobante.find('cfdi:Receptor', NAMESPACES)
-        if receptor is not None:
-            datos['Receptor_RFC'] = receptor.get('Rfc')
-            datos['UsoCFDI'] = receptor.get('UsoCFDI')
-
-        # --- 2. Extracción de Impuestos a nivel de Comprobante ---
-        impuestos_nodo = comprobante.find('cfdi:Impuestos', NAMESPACES)
-        if impuestos_nodo is not None:
-            total_traslados = impuestos_nodo.get('TotalImpuestosTrasladados')
-            if total_traslados is not None:
-                 datos['TotalImpuestosTrasladados'] = total_traslados
-
-            traslados_generales = impuestos_nodo.find('cfdi:Traslados', NAMESPACES)
-            if traslados_generales is not None:
-                for traslado in traslados_generales.findall('cfdi:Traslado', NAMESPACES):
-                    impuesto_tipo = traslado.get('Impuesto') 
-                    tasa_o_cuota = traslado.get('TasaOCuota')
-                    importe_impuesto = traslado.get('Importe')
-
-                    if impuesto_tipo == '002' and tasa_o_cuota == '0.160000':
-                        datos['IVA_Tasa16'] = str(float(datos['IVA_Tasa16']) + float(importe_impuesto))
-                        
-        # --- 3. Extracción de Conceptos ---
-        conceptos_nodo = comprobante.find('cfdi:Conceptos', NAMESPACES)
-        if conceptos_nodo is not None:
-            for concepto in conceptos_nodo.findall('cfdi:Concepto', NAMESPACES):
-                datos['Conceptos'].append({
-                    'ClaveProdServ': concepto.get('ClaveProdServ'),
-                    'Cantidad': concepto.get('Cantidad'),
-                    'Descripcion': concepto.get('Descripcion'),
-                    'ValorUnitario': concepto.get('ValorUnitario'),
-                    'Importe': concepto.get('Importe')
-                })
-        
-        # --- 4. Extracción del UUID ---
-        complemento = comprobante.find('cfdi:Complemento', NAMESPACES)
-        if complemento is not None:
-            tfd = complemento.find('tfd:TimbreFiscalDigital', NAMESPACES)
-            if tfd is not None:
-                datos['UUID'] = tfd.get('UUID')
-        
-        return datos
-
-    except Exception as e:
-        print(f"ERROR al procesar el archivo: {e}")
-        return None
+from cfdi_processor import iter_rows, parse_cfdi_file
 
 
-def guardar_en_csv(datos_facturas, nombre_archivo='datos_facturas.csv'):
-    
-    print(f"\n-> Guardando {len(datos_facturas)} facturas en {nombre_archivo}...")
-    
-    # --- CORRECCIÓN FINAL: Lista de encabezados en una sola línea para evitar SyntaxError ---
-    fieldnames = ['UUID', 'Fecha', 'SubTotal', 'Total', 'Moneda', 'TotalImpuestosTrasladados', 'IVA_Tasa16', 'TipoDeComprobante', 'Emisor_RFC', 'Emisor_Nombre', 'Receptor_RFC', 'UsoCFDI', 'ClaveProdServ', 'Descripcion', 'Cantidad', 'ValorUnitario', 'Importe_Concepto']
-    # ------------------------------------------------------------------------------------------
-    
-    filas_csv = []
-    for factura in datos_facturas:
-        datos_principales = {k: v for k, v in factura.items() if k not in ['Conceptos']}
-        
-        if factura['Conceptos']:
-            for concepto in factura['Conceptos']:
-                fila = datos_principales.copy()
-                fila.update({
-                    'ClaveProdServ': concepto.get('ClaveProdServ'),
-                    'Descripcion': concepto.get('Descripcion'),
-                    'Cantidad': concepto.get('Cantidad'),
-                    'ValorUnitario': concepto.get('ValorUnitario'),
-                    'Importe_Concepto': concepto.get('Importe') 
-                })
-                filas_csv.append(fila)
+def expand_inputs(inputs: list[str], *, recursive: bool) -> list[str]:
+    files: list[str] = []
+    for entry in inputs:
+        if os.path.isdir(entry):
+            pattern = "**/*.xml" if recursive else "*.xml"
+            files.extend(str(p) for p in Path(entry).glob(pattern))
+        elif any(ch in entry for ch in "*?[]"):
+            files.extend(glob.glob(entry))
         else:
-             filas_csv.append(datos_principales)
-
-    try:
-        with open(nombre_archivo, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader() 
-            writer.writerows(filas_csv)
-
-        print(f"✅ ¡Guardado completado!")
-    except Exception as e:
-        print(f"❌ ERROR al guardar el archivo CSV: {e}")
+            files.append(entry)
+    return sorted(set(files))
 
 
-def main(archivos_xml):
-    
-    print(f"DEBUG: Argumentos recibidos: {archivos_xml}")
-    
-    if not archivos_xml:
-        print("Uso: python procesador_cfdi.py <archivo1.xml> [archivo2.xml...]")
-        return
-
-    resultados_colectados = [] 
-    
-    for archivo in archivos_xml:
-        datos_extraidos = extraer_datos_factura(archivo)
-        
-        if datos_extraidos:
-            resultados_colectados.append(datos_extraidos)
-
-    print("\n--- RESUMEN ---")
-    print(f"Facturas procesadas correctamente: {len(resultados_colectados)}")
-
-    if resultados_colectados:
-        print("\n--- DATOS EXTRAÍDOS (JSON) ---")
-        print(json.dumps(resultados_colectados, indent=2))
-
-    guardar_en_csv(resultados_colectados)
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Procesador CFDI (XML) → CSV/Excel")
+    parser.add_argument("entradas", nargs="+", help="Archivos, carpetas o patrones (*.xml)")
+    parser.add_argument("--recursive", action="store_true", help="Buscar XML en subcarpetas")
+    parser.add_argument(
+        "--granularity",
+        choices=["concept", "invoice"],
+        default="concept",
+        help="Salida por concepto o por factura",
+    )
+    parser.add_argument("--dedupe", action="store_true", help="Eliminar duplicados (por UUID + llaves básicas)")
+    parser.add_argument("--strict", action="store_true", help="Fallar si hay errores al parsear XML")
+    parser.add_argument("--excel", type=str, help="Exportar a Excel (ruta .xlsx)")
+    parser.add_argument("--csv", type=str, help="Exportar a CSV (ruta .csv)")
+    parser.add_argument("-orden", type=str, help="Campo para ordenar")
+    parser.add_argument("-desc", action="store_true", help="Orden descendente")
+    return parser.parse_args(argv)
 
 
-if __name__ == '__main__':
-    main(sys.argv[1:])
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    archivos = expand_inputs(args.entradas, recursive=args.recursive)
+    print(f"📂 Archivos encontrados: {len(archivos)}")
+    if not archivos:
+        print("⚠️ No se encontraron XML")
+        return 2
+
+    rows: list[dict] = []
+    errors: list[str] = []
+    for archivo in archivos:
+        try:
+            parsed = parse_cfdi_file(archivo)
+            rows.extend(iter_rows(parsed, granularity=args.granularity))
+        except Exception as exc:  # noqa: BLE001
+            msg = f"❌ Error en {archivo}: {exc}"
+            if args.strict:
+                raise
+            errors.append(msg)
+
+    if errors:
+        print("\n".join(errors))
+
+    if not rows:
+        print("⚠️ No hay datos")
+        return 3
+
+    df = pd.DataFrame(rows)
+
+    # Normaliza fecha (si existe)
+    if "Fecha" in df.columns:
+        df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
+
+    # Dedupe (más seguro)
+    if args.dedupe and "UUID" in df.columns:
+        dedupe_cols = [c for c in ["UUID", "ClaveProdServ", "Descripcion", "Importe", "Cantidad"] if c in df.columns]
+        df = df.drop_duplicates(subset=dedupe_cols)
+
+    # Orden
+    if args.orden and args.orden in df.columns:
+        df = df.sort_values(by=args.orden, ascending=not args.desc)
+
+    out_csv = args.csv or ("reporte.csv" if not args.excel else None)
+    out_xlsx = args.excel
+
+    if out_xlsx:
+        df.to_excel(out_xlsx, index=False)
+        print(f"✅ Excel generado: {out_xlsx}")
+
+    if out_csv:
+        df.to_csv(out_csv, index=False)
+        print(f"✅ CSV generado: {out_csv}")
+
+    print(f"📊 Total registros: {len(df)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

@@ -14,6 +14,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Para desarrollo (tests/lint):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Estructura
 
 - `procesador_cfdi.py`: CLI que procesa XML CFDI y genera el reporte.
@@ -35,6 +41,12 @@ python procesador_cfdi.py facturas-xml/*.xml -orden Fecha -desc --dedupe --excel
 ```
 
 Si no usas `--excel`, el script genera `reporte.csv` en la raíz.
+
+Opciones útiles:
+
+- `--granularity invoice` para una fila por factura (mejor para dashboard).
+- `--recursive` para buscar XML en subcarpetas.
+- `--csv ruta.csv` y/o `--excel ruta.xlsx` para controlar salidas.
 
 ## Dashboard (Streamlit)
 
